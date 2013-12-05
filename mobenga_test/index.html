@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Gallery</title>
+	<script type="text/javascript" src="script/jquery-1.10.2.min.js"></script>
+	<link type="text/css" rel="stylesheet" href="style/main.css"/>
+	
+	<script type="text/javascript">
+		
+	$(function() {
+		// 
+		var b = $('.body');
+		var s = $('.search');
+		var c = $('.content');
+		var q = $('#query');
+		
+		// setup body size to fit window
+		var margin = $('body').outerHeight(true) - $('body').height();
+		b.height($(window).height()-2*margin);
+		
+		// setup search textbox size
+		var w = s.width() - (b.innerWidth()-b.width());
+		var bw = $('#search').outerWidth(true);
+		var padding = q.outerWidth()-q.width();
+		q.width(w-bw-padding);
+		
+		// setup contents size
+		c.height($(window).height()-2*margin-s.outerHeight(true)-$('.commands').outerHeight(true));
+		
+		var settings = {
+				timestamp: parseInt(Date.now()/1000),
+				consumer: 'b54580f369a7eeebecb2004dc429d08f',
+				method: 'HMAC-SHA1',
+				version: '1.0',
+				callback: 'http://localhost',
+		};
+
+		var ph = $('.photos');
+		var g = $('#gallery');
+		var gl = $('.gallery');
+		var img = $('.gallery .show');
+		var main = $('.gallery .show #main');
+		var next = $('.gallery .show #next');
+
+		var w = 0;
+		var h = 0;
+		
+		// get initial images (belonging to user mob_dev)
+		$.getJSON('http://api.flickr.com/services/rest/?&method=flickr.people.getPublicPhotos&api_key='+settings.consumer+'&user_id=29096781@N02&per_page=12&page=4&format=json&jsoncallback=?', function(data) {
+			if(data.stat=="ok") {
+				$.each(data.photos.photo, function(i,item){
+					var photoURL = 'http://farm' + item.farm + '.static.flickr.com/' + item.server + '/' + item.id + '_' + item.secret + '_m.jpg'
+					var photoID = item.id;
+					// create image holder
+					var div = $('<img class="image" src="'+photoURL+'"/>');
+					// setup selectable event
+					div.click(function() {
+						if(div.hasClass('selected')) {
+							div.removeClass('selected');
+						} else {
+							div.addClass('selected');
+						}
+					});
+					ph.append(div);
+					// save biggest image size
+					if(w<div.width()) {
+						w = div.width();
+					}
+					if(h<div.height()) {
+						h = div.height();
+					}
+				});
+			}
+		});
+		
+		var tm = 0; // for timeout function
+		$('#search').click(function() {
+			var value = q.val();
+			if(value!="") {
+				// reset preview gallery slideshow
+				if(!gl.hasClass('hidden')) {
+					g.removeAttr("disabled");
+					$('.gallery').addClass('hidden');
+				}
+				// clear previous timeout
+				if(tm!=0) {
+					main.stop();
+					next.stop();
+					clearTimeout(tm);
+					tm = 0;
+				}
+				// make image list to appear
+				ph.fadeTo(100, 1);
+				// empty current image list
+				ph.empty();
+				$.getJSON('http://api.flickr.com/services/rest/?&method=flickr.photos.search&api_key='+settings.consumer+'&tags='+value+'&per_page=12&page=4&format=json&jsoncallback=?', function(data) {
+					if(data.stat=="ok") {
+						$.each(data.photos.photo, function(i,item){
+							var photoURL = 'http://farm' + item.farm + '.static.flickr.com/' + item.server + '/' + item.id + '_' + item.secret + '_m.jpg'
+							var photoID = item.id;
+							// create image holder
+							var div = $('<img class="image" src="'+photoURL+'"/>');
+							// setup selectable event
+							div.click(function() {
+								if(div.hasClass('selected')) {
+									div.removeClass('selected');
+								} else {
+									div.addClass('selected');
+								}
+							});
+							ph.append(div);
+							// save biggest image size
+							if(w<div.width()) {
+								w = div.width();
+							}
+							if(h<div.height()) {
+								h = div.height();
+							}
+						});
+					}
+				});
+			}
+		});
+		g.click(function() {
+			// get all selected images
+			var photos = $('img.selected');
+			if(photos.length>0) {
+				// hide image list
+				ph.fadeTo(100, .25, function() {
+					g.attr("disabled", 'disabled');
+					// show slideshow div
+					$('.gallery').removeClass('hidden');
+					var index = 0;
+					// set current image
+					main.attr('src', photos[index].src);
+					// setup image size and placement
+					var dw = (w-main.width())/2;
+					var dh = (h-main.height())/2;
+					main.css('margin-left', dw);
+					main.css('margin-right', dw);
+					main.css('margin-top', dh);
+					main.css('margin-bottom', dh);
+					img.css('margin-top', (c.height()-h)/4);
+					img.css('margin-left', (c.width()-w)/2);
+					img.width(w);
+					img.height(h);
+					if(index<photos.length-1) {
+						// setup next image
+						next.attr('src', photos[index+1].src);
+						// setup next image size and placement
+						var dw = (w-next.width())/2;
+						var dh = (h-next.height())/2;
+						next.css('margin-left', dw);
+						next.css('margin-right', dw);
+						next.css('margin-top', dh);
+						next.css('margin-bottom', dh);
+					}
+					main.css('left', 0);
+					next.css('left', w);
+					var fn = function() {
+						// start slide animation
+						main.animate({
+							left: -w
+						}, 1000, function() {
+							// called when animation is done
+							// jump to next image
+							++index;
+							if(index>=photos.length) {
+								// restart if last image
+								index=0;
+							}
+							// set next image
+							if(index<photos.length-1) {
+								main.attr('src', photos[index+1].src);
+							} else {
+								main.attr('src', photos[0].src);
+							}
+							// reset next image position
+							main.css('left', w);
+							// recalculate sizes and position for new image
+							var dw = (w-main.width())/2;
+							var dh = (h-main.height())/2;
+							main.css('margin-left', dw);
+							main.css('margin-right', dw);
+							main.css('margin-top', dh);
+							main.css('margin-bottom', dh);
+							// flip image variables
+							var t = main;
+							main = next;
+							next = t;
+							// restart timeout function
+							tm = setTimeout(fn, 1000);
+						});
+						// animate next image with current so they slide toguether
+						next.animate({
+							left: 0
+						}, 1000);
+					};
+					// start timeout function
+					tm = setTimeout(fn, 1000);
+				});
+			}
+		});
+	});
+	</script>
+</head>
+<body>
+<div class="body">
+	<div class="search">
+		<input type="text" id="query" />
+		<input type="button" id="search" value="Search" />
+	</div>
+	<div class="content">
+		<div class="photos"></div>
+		<div class="gallery hidden">
+			<div class="show"><img id="main"/><img id="next"/></div>
+		</div>
+	</div>
+	<div class="commands"><input type="button" id="gallery" value="Show Gallery"/></div>
+</div>
+</body>
+</html>
